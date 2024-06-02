@@ -69,6 +69,9 @@ void getSensors(void) {
     sensorValue = twelveBitPressure >> 2;           // Reduce the reading to stable 10 bits for state machine.
 
     // Receive tone hole readings from ATmega32U4. The transfer takes ~ 125 us.
+    #if NUM_TONEHOLES != 9
+    #error "implementation supports only 9 toneholes"
+    #endif
     byte toneholePacked[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
     SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));
     digitalWrite(2, LOW);   // CS -- Wake up ATmega.
@@ -101,7 +104,7 @@ void getSensors(void) {
 
 
 
-    for (byte i = 0; i < 9; i++) {
+    for (byte i = 0; i < NUM_TONEHOLES; i++) {
         if (calibration == 0) {  // If we're not calibrating, compensate for baseline sensor offset (the stored sensor reading with the hole completely uncovered).
             toneholeRead[i] = toneholeRead[i] - toneholeBaseline[i];
         }
@@ -182,8 +185,7 @@ void readIMU(void) {
     roll = roll * RAD_TO_DEG;
     pitch = pitch * RAD_TO_DEG;
     yaw = yaw * RAD_TO_DEG;
-
-    /*
+/*
     Serial.print(-180);
     Serial.print(" , ");
     Serial.print(roll);
@@ -194,7 +196,6 @@ void readIMU(void) {
     Serial.print(" , ");
     Serial.println(180);
 */
-
 
 #if 1
     // Integrate gyroY without accelerometer to get roll in the local frame (around the long axis of the WARBL regardless of orientation). This seems more useful/intuitive than the "roll" Euler angle.
@@ -510,14 +511,15 @@ void readMIDI(void) {
 
 // Monitor the status of the 3 buttons. The integrating debouncing algorithm is taken from debounce.c, written by Kenneth A. Kuhn:http://www.kennethkuhn.com/electronics/debounce.c
 // NOTE: Button array is zero-indexed, so "button 1" in all documentation is button 0 here.
-void checkButtons() {
+// Returns true if button state changed.
+bool checkButtons() {
 
-    static byte integrator[] = { 0, 0, 0 };                // When this reaches MAXIMUM, a button press is registered. When it reaches 0, a release is registered.
+    static byte integrator[] = { 0, 0, 0 };                // When this reaches MAXIMUM, a button release is registered. When it reaches 0, a press is registered.
     static bool prevOutput[] = { 0, 0, 0 };                // Previous state of button.
     bool buttonUsed = 0;                                   // Flag any button activity, so we know to handle it.
     static unsigned int longPressCounter[] = { 0, 0, 0 };  // For counting how many readings each button has been held, to indicate a long button press
 
-    for (byte j = 0; j < 3; j++) {
+    for (byte j = 0; j < NUM_BUTTONS; j++) {
 
         if (digitalRead(buttons[j]) == 0) {  // If the button reads low, reduce the integrator by 1
             if (integrator[j] > 0) {
@@ -549,12 +551,11 @@ void checkButtons() {
         else if (integrator[j] >= MAXIMUM) {  // The button is not pressed.
             pressed[j] = 0;
             integrator[j] = MAXIMUM;  // Defensive code if integrator got corrupted
-
             if (prevOutput[j] == 1 && !longPressUsed[j]) {
                 released[j] = 1;  // The button has just been released.
                 buttonUsed = 1;
             }
-
+            releasedRaw[j] = prevOutput[j];
             longPress[j] = 0;
             longPressUsed[j] = 0;  // If a button is not pressed, reset the flag that tells us it's been used for a long press.
             longPressCounter[j] = 0;
@@ -575,11 +576,7 @@ void checkButtons() {
         released[2] = 0;
     }
 
-    if (buttonUsed) {
-        handleButtons();  // If a button had been used, process the command. We only do this when we need to, so we're not wasting time.
-    }
-
-    buttonUsed = 0;  // Now that we've handled any important button activity, clear the flag until there's been new activity.
+    return buttonUsed;
 }
 
 
@@ -1945,7 +1942,7 @@ void detectSip() {
 
 
 // IMU shake detection for triggering user-defined actions.
-// Note that shake duration and threshold can be changed in setuo().
+// Note that shake duration and threshold can be changed in setup().
 void detectShake() {
 
     static bool shake = false;

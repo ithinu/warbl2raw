@@ -41,6 +41,7 @@ Pinout from left to right, holding WARBL with mouthpiece pointing up, looking at
 #include <Wire.h>  // I2C communication with EEPROM
 #include <SPI.h>   // Communication with ATmega32U4 and IMU
 #include <math.h>
+#include <limits.h>
 
 // Libraries below may need to be installed.
 #include <MIDI.h>
@@ -297,8 +298,9 @@ byte calibration = 0;  // Whether we're currently calibrating. 1 is for calibrat
 
 
 // Variables for reading buttons
-bool pressed[] = { 0, 0, 0 };          // Whether a button is currently presed
-bool released[] = { 0, 0, 0 };         // If a button has just been released
+bool pressed[] = { 0, 0, 0 };          // Whether a button is currently pressed
+bool released[] = { 0, 0, 0 };         // If a button has just been released and there was no long press
+bool releasedRaw[] = { 0, 0, 0 };      // If a button has just been released; for the raw mode; ensured bracketing justPressed/releasedRaw around any key press, including a long one
 bool justPressed[] = { 0, 0, 0 };      // If a button has just been pressed
 bool longPress[] = { 0, 0, 0 };        // Long button press
 bool noteOnOffToggle[] = { 0, 0, 0 };  // If using a button to toggle a noteOn/noteOff command, keep track of state.
@@ -314,12 +316,28 @@ int pressureReceiveMode = 100;       // Indicates the variable for which we're c
 byte fingeringReceiveMode = 0;       // Indicates the mode (instrument) for  which a fingering pattern is going to be sent
 byte WARBL2settingsReceiveMode = 0;  // Indicates the mode (instrument) for  which a WARBL2settings array variable is going to be sent
 
-
-
-
-
-
-
+// Raw mode variables
+bool noteMode = 1;                   // 1 if in normal note/pitch bend/shake/sip mode, 0 if in raw mode which surpressed these messages
+                                     // in order to conserve bandwidth, sends raw/sensor MIDI messages instead; all other functions like calibration
+                                     // or configuration work normally; communicationMode and calibration force noteMode/exit the raw mode
+int32_t rawMask = 0x1fff;            // A bit mask where bit number represents an index of a sensor as given in RAW_SI_*; if the bit is true, the respective;
+                                     // example values 0x1fff pressure + toneholes + buttons (default), 0xffff all except gyro, 0x70000 gyro only
+                                     // measurement is included in raw MIDI messages
+int rawThrottle = 3;                 // Maximum number of raw messages per loop; if exceeded, update frequency/precision decreases
+short rawPrevious[RAW_SOURCE_NUM] = {// Sensor value most recently sent; used to calculate difference to current which determines priority; indices
+                                     // according to RAW_SI_*; SHRT_MIN for never
+    SHRT_MIN, SHRT_MIN, SHRT_MIN, SHRT_MIN,
+    SHRT_MIN, SHRT_MIN, SHRT_MIN, SHRT_MIN,
+    SHRT_MIN, SHRT_MIN, SHRT_MIN, SHRT_MIN,
+    SHRT_MIN, SHRT_MIN, SHRT_MIN, SHRT_MIN,
+    SHRT_MIN, SHRT_MIN, SHRT_MIN,
+};                                   
+typedef struct {
+    byte index;                      // Sensor index, one of RAW_SI_*;
+    short value;                     // Measured raw sensor value; pressure can be negative; in case of buttons, 1 is pressed
+} raw_message;
+raw_message rawQueue[RAW_SOURCE_NUM];// Queue of measurements accumulated in the current loop iteration
+byte rawQueueSize = 0;               // Number of measurements accumulated in the current loop iteration
 
 void setup() {
 
@@ -461,6 +479,7 @@ void setup() {
         }
     }
 #endif
+    rawEnable();
 }
 
 
@@ -477,14 +496,20 @@ void loop() {
     /////////// Things here happen ~ every 3 ms if connected to BLE and 2 ms otherwise.
 
     byte delayTime = calculateDelayTime();  // Figure out how long to sleep based on how much time has been consumed previously (delayTime ranges from 0 to 3 ms).
-    delay(delayTime);                       // Put the NRF52840 in tickless sleep, saving power. ~ 2.5 mA NRF consumption with delay of 3 ms. Total device consumption is ~8.7 mA with 3 ms delay, or 10.9 mA with 2 ms delay.
+    //delay(delayTime);                       // Put the NRF52840 in tickless sleep, saving power. ~ 2.5 mA NRF consumption with delay of 3 ms. Total device consumption is ~8.7 mA with 3 ms delay, or 10.9 mA with 2 ms delay.
+    delay(200);
     wakeTime = millis();                    // When we woke from sleep
     getSensors();                           // 200 us, 55 of which is reading the pressure sensor.
-    getFingers();                           // Find which holes are covered. 4 us.
-    getState();                             // Get the breath state. 3 us.
-    debounceFingerHoles();                  // Get the new MIDI note if the fingering has changed.
-    getShift();                             // Shift the next note up or down based on register and key.
-    sendNote();                             // Send the note as soon as we know the note, state, and shift.
+    if(noteMode) {
+        getFingers();                       // Find which holes are covered. 4 us.
+        getState();                         // Get the breath state. 3 us.
+        debounceFingerHoles();              // Get the new MIDI note if the fingering has changed.
+        getShift();                         // Shift the next note up or down based on register and key.
+        sendNote();                         // Send the note as soon as we know the note, state, and shift.
+    } else {
+        clearRawQueue();
+        rawUpdateToneholes();
+    }
     readMIDI();                             // Read incoming MIDI messages .
 
 
@@ -494,7 +519,10 @@ void loop() {
     byte pressureInterval = calculatePressureInterval();  // Determine how frequently to send MIDI messages based on pressure.
     if ((millis() - pressureTimer) >= pressureInterval) {
         pressureTimer = millis();
-        calculateAndSendPressure();
+        if(noteMode)
+            calculateAndSendPressure();
+        else
+            rawUpdatePressure();
     }
 
 
@@ -507,9 +535,16 @@ void loop() {
         blink();      // Blink any LED if necessary.
         pulse();      // Pulse any LED if necessary.
         calibrate();  // Calibrate/continue calibrating if the command has been received.
-        checkButtons();
-        detectSip();
-        detectShake();
+        bool buttonUsed = checkButtons();
+        if (noteMode) {
+            if(buttonUsed)
+                handleButtons();
+            detectSip();
+            detectShake();
+        } else {
+            rawUpdateButtons();
+            rawUpdateIMU();
+        }
         sendToConfig(false, false);  // Check the queue and send to the Configuration Tool if it is time.
     }
 
@@ -519,10 +554,13 @@ void loop() {
 
     if ((millis() - pitchBendTimer) >= ((connIntvl > 8 && WARBL2settings[MIDI_DESTINATION] != 0) ? (12) : 9)) {
         pitchBendTimer = millis();    // This timer is also reset when we send a note, so none if these things will happen until the next connection interval if using BLE.
-        calculateAndSendPitchbend();  // 11-200 us depending on whether holes are partially covered.
+        if (noteMode)
+            calculateAndSendPitchbend();  // 11-200 us depending on whether holes are partially covered.
         printStuff();                 // Debug
-        sendIMU();                    // ~ 130 us
-        shakeForVibrato();            // ~ 200 uS
+        if (noteMode) {
+            sendIMU();                    // ~ 130 us
+            shakeForVibrato();            // ~ 200 uS
+        }
     }
 
 
@@ -535,6 +573,8 @@ void loop() {
         watchdogReset();       // Feed the watchdog.
     }
 
+
+    consumeRawQueue();
 
     // timerD = micros(); // For benchmarking--can paste these lines around any of the function calls above.
     // Serial.println(micros() - timerD);
