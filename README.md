@@ -1,3 +1,5 @@
+I am adding a raw mode in this fork. It does not work yet.
+
 ## WARBL2 is an open-source USB MIDI and BLE MIDI wind controller.
 
 Please see the web site for more info:
