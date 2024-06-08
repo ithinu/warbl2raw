@@ -1,4 +1,4 @@
-## WARBL2 firmware 4.1 with a raw mode.
+## WARBL2 firmware 4.1 with raw sensor mode
 
 Original (maybe newer) WARBL2 firmware: https://github.com/amowry/WARBL2
 
