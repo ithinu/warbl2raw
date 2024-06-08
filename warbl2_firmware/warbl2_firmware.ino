@@ -320,13 +320,14 @@ byte WARBL2settingsReceiveMode = 0;  // Indicates the mode (instrument) for  whi
 bool noteMode = 1;                   // 1 if in normal note/pitch bend/shake/sip mode, 0 if in raw mode which surpressed these messages
                                      // in order to conserve bandwidth, sends raw/sensor MIDI messages instead; all other functions like calibration
                                      // or configuration work normally; communicationMode and calibration force noteMode/exit the raw mode
-int32_t rawMask = 0x1fff;            // A bit mask where bit number represents an index of a sensor as given in RAW_SI_*; if the bit is true, the respective;
+int32_t rawMask = 0x1fff;            // A bit mask where bit number represents the type of a sensor as given in RAW_TYPE_*; if the bit is true, the respective;
                                      // example values 0x3ff only pressure + toneholes, 0x1fff pressure + toneholes + buttons (default),
                                      // 0xffff all except gyro, 0x70000 gyro only, 0x7e000 accel + gyro
                                      // measurement is included in raw MIDI messages
 int rawThrottle = 2;                 // Maximum number of raw messages per loop; if exceeded, update frequency/precision decreases
-signed short rawPrevious[RAW_SOURCE_NUM] = {// Sensor value most recently sent; used to calculate difference to current which determines priority; indices
-                                     // according to RAW_SI_*; SHRT_MIN for never
+bool rawGyroEnable = false;          // If the mask enables any of the gyro coordinates; switches off the gyro part of IMU if false
+signed short rawPrevious[RAW_TYPE_NUM] = {// Sensor value most recently sent; used to calculate difference to current which determines priority; indices
+                                     // according to RAW_TYPE_*; SHRT_MIN for never
     SHRT_MIN, SHRT_MIN, SHRT_MIN, SHRT_MIN,
     SHRT_MIN, SHRT_MIN, SHRT_MIN, SHRT_MIN,
     SHRT_MIN, SHRT_MIN, SHRT_MIN, SHRT_MIN,
@@ -334,11 +335,11 @@ signed short rawPrevious[RAW_SOURCE_NUM] = {// Sensor value most recently sent; 
     SHRT_MIN, SHRT_MIN, SHRT_MIN,
 };                                   
 typedef struct {
-    byte index;                      // Sensor index, one of RAW_SI_*;
+    byte type;                      // Sensor type, one of RAW_TYPE_*;
     signed short value;                     // Measured raw sensor value; pressure can be negative; in case of buttons, 1 is pressed
     int priority;                    // Calculated after all events are put to the queue, using index and difference to last value sent
 } raw_message;
-raw_message rawQueue[RAW_SOURCE_NUM];// Queue of measurements accumulated in the current loop iteration
+raw_message rawQueue[RAW_TYPE_NUM];// Queue of measurements accumulated in the current loop iteration
 byte rawQueueSize = 0;               // Number of measurements accumulated in the current loop iteration
 
 void setup() {

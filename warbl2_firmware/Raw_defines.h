@@ -7,26 +7,26 @@
 #define NUM_BUTTONS 3
 #define NUM_IMU 6
 
-#define RAW_SOURCE_NUM 19           // number of possible sources (measurements) producing sensor messages;
-                                    // index of each defined in RAW_SI_*
-#define RAW_SI_PRESSURE 0           // pressure sensor (var sensorValue 10 bit signed)
-#define RAW_SI_TONEHOLE 1           // 1 to 9 for toneholes (var toneholeRead 8 bit unsigned)
-#define RAW_SI_BUTTON 10            // 10 to 12 for buttons, bits as in RAW_BUTTON_*
-#define RAW_SI_IMU 13               // 13 to 18 for 6 IMU measurements (accelX, accelY, accelZ, roll, pitch, yaw float)
-#define RAW_SI_END 19
-#if RAW_SI_TONEHOLE - RAW_SI_PRESSURE != NUM_PRESSURE
+#define RAW_TYPE_NUM 19           // number of possible sources (measurements) producing sensor messages;
+                                    // index of each defined in RAW_TYPE_*
+#define RAW_TYPE_PRESSURE 0         // pressure sensor (var sensorValue 10 bit signed)
+#define RAW_TYPE_TONEHOLE 1         // 1 to 9 for toneholes (var toneholeRead 8 bit unsigned)
+#define RAW_TYPE_BUTTON 10          // 10 to 12 for buttons, bits as in RAW_BUTTON_*
+#define RAW_TYPE_IMU 13             // 13 to 18 for 6 IMU measurements (accelX, accelY, accelZ, roll, pitch, yaw float)
+#define RAW_TYPE_END 19
+#if RAW_TYPE_TONEHOLE - RAW_TYPE_PRESSURE != NUM_PRESSURE
     #error "exactly 1 pressure sensor supported"
 #endif
-#if RAW_SI_BUTTON - RAW_SI_TONEHOLE != NUM_TONEHOLES
+#if RAW_TYPE_BUTTON - RAW_TYPE_TONEHOLE != NUM_TONEHOLES
     #error "exactly 9 toneholes supported"
 #endif
-#if RAW_SI_IMU - RAW_SI_BUTTON != NUM_BUTTONS
+#if RAW_TYPE_IMU - RAW_TYPE_BUTTON != NUM_BUTTONS
     #error "exactly 3 buttons supported"
 #endif
-#if RAW_SOURCE_NUM != RAW_SI_END
+#if RAW_TYPE_NUM != RAW_TYPE_END
     #error "source num mismatch"
 #endif
-#if RAW_SI_END > 31
+#if RAW_TYPE_END > 31
     #error "raw mask supports up to 31 sensors"
 #endif
 #define RAW_PRESSURE_DIV 1024       // Divider normalizing pressure values
