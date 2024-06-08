@@ -32,7 +32,7 @@
 #define RAW_PRESSURE_DIV 1024       // Divider normalizing pressure values
 #define RAW_TONEHOLE_DIV 512        // Divider normalizing tonehole values
 #define RAW_ACCEL_DIV 256           // Divider normalizing IMU accel* values
-#define RAW_GYRO_DIV 180            // Divider normalizing IMU roll, pitch, yaw values
+#define RAW_GYRO_DIV 256            // Divider normalizing IMU roll, pitch, yaw values
 #define RAW_MAX_VALUE (1 << 13)     // Maximum range of integer representation of raw values
                                     // -RAW_MAX_VALUE ... RAW_MAX_VALUE
 #define RAW_BUTTON_PRESSED 0        // Bit for currently pressed
