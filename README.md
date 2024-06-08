@@ -13,5 +13,5 @@ This mode may require a relatively high bandwidth, thus a single update item
 * byte2 = (value >> 7) & 0x7F;
 
 where type is defined by RAW_TYPE_* constants and value falls within
--16384 ... 16383 max, depending on type. For buttons, state is stored in
+-8192 ... 8191 max, depending on type. For buttons, state is stored in
 individual bits whose numbers are given by RAW_BUTTON_* constants.
