@@ -321,10 +321,11 @@ bool noteMode = 1;                   // 1 if in normal note/pitch bend/shake/sip
                                      // in order to conserve bandwidth, sends raw/sensor MIDI messages instead; all other functions like calibration
                                      // or configuration work normally; communicationMode and calibration force noteMode/exit the raw mode
 int32_t rawMask = 0x1fff;            // A bit mask where bit number represents an index of a sensor as given in RAW_SI_*; if the bit is true, the respective;
-                                     // example values 0x1fff pressure + toneholes + buttons (default), 0xffff all except gyro, 0x70000 gyro only
+                                     // example values 0x3ff only pressure + toneholes, 0x1fff pressure + toneholes + buttons (default),
+                                     // 0xffff all except gyro, 0x70000 gyro only, 0x7e000 accel + gyro
                                      // measurement is included in raw MIDI messages
-int rawThrottle = 3;                 // Maximum number of raw messages per loop; if exceeded, update frequency/precision decreases
-short rawPrevious[RAW_SOURCE_NUM] = {// Sensor value most recently sent; used to calculate difference to current which determines priority; indices
+int rawThrottle = 2;                 // Maximum number of raw messages per loop; if exceeded, update frequency/precision decreases
+signed short rawPrevious[RAW_SOURCE_NUM] = {// Sensor value most recently sent; used to calculate difference to current which determines priority; indices
                                      // according to RAW_SI_*; SHRT_MIN for never
     SHRT_MIN, SHRT_MIN, SHRT_MIN, SHRT_MIN,
     SHRT_MIN, SHRT_MIN, SHRT_MIN, SHRT_MIN,
@@ -334,7 +335,8 @@ short rawPrevious[RAW_SOURCE_NUM] = {// Sensor value most recently sent; used to
 };                                   
 typedef struct {
     byte index;                      // Sensor index, one of RAW_SI_*;
-    short value;                     // Measured raw sensor value; pressure can be negative; in case of buttons, 1 is pressed
+    signed short value;                     // Measured raw sensor value; pressure can be negative; in case of buttons, 1 is pressed
+    int priority;                    // Calculated after all events are put to the queue, using index and difference to last value sent
 } raw_message;
 raw_message rawQueue[RAW_SOURCE_NUM];// Queue of measurements accumulated in the current loop iteration
 byte rawQueueSize = 0;               // Number of measurements accumulated in the current loop iteration
@@ -496,8 +498,8 @@ void loop() {
     /////////// Things here happen ~ every 3 ms if connected to BLE and 2 ms otherwise.
 
     byte delayTime = calculateDelayTime();  // Figure out how long to sleep based on how much time has been consumed previously (delayTime ranges from 0 to 3 ms).
-    //delay(delayTime);                       // Put the NRF52840 in tickless sleep, saving power. ~ 2.5 mA NRF consumption with delay of 3 ms. Total device consumption is ~8.7 mA with 3 ms delay, or 10.9 mA with 2 ms delay.
-    delay(200);
+    delay(delayTime);                       // Put the NRF52840 in tickless sleep, saving power. ~ 2.5 mA NRF consumption with delay of 3 ms. Total device consumption is ~8.7 mA with 3 ms delay, or 10.9 mA with 2 ms delay.
+    //delay(200);
     wakeTime = millis();                    // When we woke from sleep
     getSensors();                           // 200 us, 55 of which is reading the pressure sensor.
     if(noteMode) {
@@ -564,6 +566,9 @@ void loop() {
     }
 
 
+    if(!noteMode)
+        consumeRawQueue();
+
 
     /////////// Things here happen ~ every 0.75 s.
 
@@ -572,9 +577,6 @@ void loop() {
         manageBattery(false);  // Check the battery and manage charging. Takes about 300 us because of reading the battery voltage.
         watchdogReset();       // Feed the watchdog.
     }
-
-
-    consumeRawQueue();
 
     // timerD = micros(); // For benchmarking--can paste these lines around any of the function calls above.
     // Serial.println(micros() - timerD);

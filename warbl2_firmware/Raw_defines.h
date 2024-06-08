@@ -24,18 +24,24 @@
     #error "exactly 3 buttons supported"
 #endif
 #if RAW_SOURCE_NUM != RAW_SI_END
-    #error "sopurce num mismatch"
+    #error "source num mismatch"
 #endif
 #if RAW_SI_END > 31
     #error "raw mask supports up to 31 sensors"
 #endif
-#define RAW_PRESSURE_DIV 1024       // divider normalizing pressure values
-#define RAW_TONEHOLE_DIV 512        // divider normalizing tonehole values
-#define RAW_ACCEL_DIV 256           // divider normalizing IMU accel* values
-#define RAW_GYRO_DIV 180            // divider normalizing IMU roll, pitch, yaw values
-#define RAW_MAX_VALUE (1 << 13)     // maximum range of integer representation of raw values
+#define RAW_PRESSURE_DIV 1024       // Divider normalizing pressure values
+#define RAW_TONEHOLE_DIV 512        // Divider normalizing tonehole values
+#define RAW_ACCEL_DIV 256           // Divider normalizing IMU accel* values
+#define RAW_GYRO_DIV 180            // Divider normalizing IMU roll, pitch, yaw values
+#define RAW_MAX_VALUE (1 << 13)     // Maximum range of integer representation of raw values
                                     // -RAW_MAX_VALUE ... RAW_MAX_VALUE
-#define RAW_BUTTON_PRESSED 0        // bit for currently pressed
-#define RAW_BUTTON_TOGGLE_ON 1      // bit for just pressed
-#define RAW_BUTTON_TOGGLE_OFF 2     // bit for just released
-#define RAW_BUTTON_LONG_PRESS 3     // bit for long press
+#define RAW_BUTTON_PRESSED 0        // Bit for currently pressed
+#define RAW_BUTTON_TOGGLE_ON 1      // Bit for just pressed
+#define RAW_BUTTON_TOGGLE_OFF 2     // Bit for just released
+#define RAW_BUTTON_LONG_PRESS 3     // Bit for long press
+
+#define RAW_PRI_PRESSURE 1          // Pressure priority, multiplies diffs of values in ~ -2000 ... 8000
+#define RAW_PRI_TONEHOLE 1          // Tonehole priority, multiplies diffs of values in ~ -5000 ... 1200, >= 0 pressed
+#define RAW_PRI_BUTTON 1000         // Button priority, multiplies diffs of values in 0 ... 15, see RAW_BUTTON_*
+#define RAW_PRI_IMU_ACCEL 1         // Accel priority, multiplies diffs of values in -400 ... 400
+#define RAW_PRI_IMU_GYRO 1          // Gyro priority, multiplies diffs of values in ?? ~ 1000, 1500

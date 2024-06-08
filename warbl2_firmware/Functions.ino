@@ -3097,7 +3097,7 @@ void startAdv(void) {
 void sendMIDI(uint8_t m, uint8_t c, uint8_t d1, uint8_t d2)  // Send a 3-byte MIDI event over USB.
 {
     m &= 0xF0;
-    c &= 0xF;
+    /*c &= 0xF;*/ // c is in range 1 ... 16
     d1 &= 0x7F;
     d2 &= 0x7F;
 

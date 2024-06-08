@@ -29,7 +29,6 @@ bool rawSensorEnabled(int index) {
 // Empties the raw queue
 void clearRawQueue(void) {
     rawQueueSize = 0;
-    Serial.println("---------------------------------");
 }
 
 
@@ -38,10 +37,10 @@ void toRawQueue(byte index, short value) {
     if (rawSensorEnabled(index) && rawPrevious[index] != value) {
         raw_message m = {index, value};
         rawQueue[rawQueueSize++] = m;
-        Serial.print("[");
-        Serial.print(m.index);
-        Serial.print("]=");
-        Serial.println(m.value);
+        // Serial.print("[");
+        // Serial.print(m.index);
+        // Serial.print("]=");
+        // Serial.println(m.value);
     }
 }
 
@@ -127,7 +126,14 @@ void rawUpdateIMU(void) {
 
 // Sends a raw message, updates rawPrevious
 void sendRawQueueElement(raw_message* m) {
-    rawPrevious[m->index] = m->value;
+    int v = m->value;
+    byte lsb = v & 0x7F;
+    byte msb = (v >> 7) & 0x7F;
+#if RAW_SI_END >= 32
+    #error "index must not exceed range 0 ... 31"
+#endif
+    sendMIDI(0x80 + (m->index & 0x10), (m->index & 0x0f) + 1, lsb, msb);
+    rawPrevious[m->index] = v;
 //    Serial.print("c[");
 //    Serial.print(m->index);
 //    Serial.print("]=");
@@ -135,11 +141,50 @@ void sendRawQueueElement(raw_message* m) {
 }
 
 
+int compareMessages(const void *cmp1, const void *cmp2)
+{
+  int a = ((raw_message*)cmp1)->priority;
+  int b = ((raw_message*)cmp2)->priority;
+  return b - a;
+}
+
+
 // Sends throttled queued raw/sensor messages. If their number exceedes rawThrottle, only these of highest
 // priority and sent. Priority is based on sensor type and absolute difference compared to the most
 // recent value sent
 void consumeRawQueue(void) {
-    for(int q = 0; q < rawQueueSize; ++q)
+//    Serial.print("queue ");Serial.println(rawQueueSize);
+    for(int q = 0; q < rawQueueSize; ++q) {
+        raw_message* m = rawQueue + q;
+        int diff = abs(m->value - rawPrevious[m->index]);
+        switch(m->index) {
+            case RAW_SI_PRESSURE ... RAW_SI_PRESSURE + NUM_PRESSURE - 1:
+                m->priority = diff*RAW_PRI_PRESSURE;
+                break;
+            case RAW_SI_TONEHOLE ... RAW_SI_TONEHOLE + NUM_TONEHOLES - 1:
+                m->priority = diff*RAW_PRI_TONEHOLE;
+                break;
+            case RAW_SI_BUTTON ... RAW_SI_BUTTON + NUM_BUTTONS - 1:
+                m->priority = diff*RAW_PRI_BUTTON;
+                break;
+            case RAW_SI_IMU ... RAW_SI_IMU + 3 - 1:
+                m->priority = diff*RAW_PRI_IMU_ACCEL;
+                break;
+            case RAW_SI_IMU + 3 ... RAW_SI_IMU + NUM_IMU - 1:
+                m->priority = diff*RAW_PRI_IMU_GYRO;
+                break;
+            default:
+                Serial.println("unknown type\n");
+        };
+        // Serial.print("\ti ");Serial.print(m->index);
+        // Serial.print(" val ");Serial.print(rawPrevious[m->index]);Serial.print("=>");Serial.print(m->value);
+        // Serial.print(" d ");Serial.print(diff);Serial.print(" pri ");Serial.println(m->priority);
+    }
+    qsort(rawQueue, rawQueueSize, sizeof(raw_message), compareMessages);
+    for(int q = 0; q < min(rawQueueSize, rawThrottle); ++q) {
+        raw_message* m = rawQueue + q;
+        // Serial.print("\t>> i ");Serial.println(m->index);
         sendRawQueueElement(rawQueue + q);
+    }
     clearRawQueue();
 }
