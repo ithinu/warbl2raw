@@ -1,9 +1,8 @@
-## WARBL2 firmware 4.1 with a raw mode.
+## WARBL2 firmware 4.1 with raw sensor mode
 
-Original (maybe newer) WARBL2 firmware: https://github.com/amowry/WARBL2
+Original (maybe newer) firmware: https://github.com/amowry/WARBL2
 
-By now, the mode is set by default, throttled to max 2 messages per 3ms.
-Only pressure, tonehole and button events are enabled.
+This is a development version with the raw mode enabled by default, throttled to max 2 messages per 3ms. Only pressure, tonehole and button events are enabled.
 
 This mode may require a relatively high bandwidth, thus a single update item
 <type, value> is packed into NOTE ON/NOTE OFF messages as follows:
