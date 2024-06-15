@@ -307,7 +307,8 @@ bool noteOnOffToggle[] = { 0, 0, 0 };  // If using a button to toggle a noteOn/n
 bool longPressUsed[] = { 0, 0, 0 };    // If we used a long button press, we set a flag so we don't use it again unless the button has been released first.
 bool specialPressUsed[] = { 0, 0, 0 };
 bool dronesOn = 0;  //used to monitor drones on/off.
-
+bool signalAliveOn = false;            // if the alive blink light is on
+int signalAliveCount = 1;              // when zero, makes a single alive blink 
 
 // Variables for communication with the WARBL Configuration Tool
 bool communicationMode = 0;          // Whether we are currently communicating with the tool.
@@ -548,9 +549,9 @@ void loop() {
         pulse();      // Pulse any LED if necessary.
         calibrate();  // Calibrate/continue calibrating if the command has been received.
         bool buttonUsed = checkButtons();
+        if(buttonUsed)
+            handleButtons();
         if (noteMode) {
-            if(buttonUsed)
-                handleButtons();
             detectSip();
             detectShake();
         } else {
@@ -579,14 +580,18 @@ void loop() {
     if(!noteMode)
         consumeRawQueue();
 
+    if ((millis() - timerF) < 100)
+        signalAlive(false);
 
     /////////// Things here happen ~ every 0.75 s.
 
     if ((millis() - timerF) > 750) {  // This period was chosen for detection of a 1 Hz fault signal from the battery charger STAT pin.
         timerF = millis();
         manageBattery(false);  // Check the battery and manage charging. Takes about 300 us because of reading the battery voltage.
+        signalAlive(true);
         watchdogReset();       // Feed the watchdog.
     }
+
 
     // timerD = micros(); // For benchmarking--can paste these lines around any of the function calls above.
     // Serial.println(micros() - timerD);

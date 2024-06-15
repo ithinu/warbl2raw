@@ -228,6 +228,8 @@ void manageBattery(bool send) {
 
     // Check to see if we've been idle long enough to power down.
     if (battPower && (nowtime - powerDownTimer > WARBL2settings[POWERDOWN_TIME] * 60000)) {
+        digitalWrite(LEDpins[GREEN_LED], HIGH);                      // Long red LED to indicate shutdown because of low battery
+        delay(5000);
         powerDown(false);  // This line can be commented out to disable auto power off, for testing the battery.
     }
 
@@ -295,8 +297,15 @@ void powerDown(bool resetTotalRuntime) {
 }
 
 
-
-
+// Switches yellow light on/off
+void signalAlive(bool lightOn) {
+    if((!lightOn || signalAliveCount-- == 0) && signalAliveOn != lightOn) {
+        digitalWrite(LEDpins[RED_LED], lightOn);  // Indicate power down.
+        digitalWrite(LEDpins[GREEN_LED], lightOn);  // Indicate power down.
+        signalAliveOn = lightOn;
+        signalAliveCount = 5; // Wait this many times before blinking again
+    }
+}
 
 
 
