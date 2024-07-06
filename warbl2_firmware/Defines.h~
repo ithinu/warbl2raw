@@ -245,6 +245,10 @@
 #define GREEN_LED 1
 #define BLUE_LED 2
 
+<<<<<<< HEAD
+#include "Raw_defines.h"
+=======
+
 /* MIDI Config Tool Constants */
 //General constants
 #define MIDI_DEFAULT_MAIN_CHANNEL 1  // Default MIDI channel to send notes on
@@ -865,5 +869,4 @@
 /* 5024-16383 other ~11 KB unused */
 
 /* END of EEPROM Addresses */
-
-#include "Raw_defines.h"
+>>>>>>> f900aacfb407cc3c845ba6b4295daf6f51a564ce

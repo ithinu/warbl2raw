@@ -4,7 +4,7 @@
 /*
     Copyright (C) 2018-2023 Andrew Mowry warbl.xyz
 
-    Many thanks to Michael Eskin, Jesse Chappell, Gerard Kilbride, Louis Barman, Randy George, and many other WARBL users for their additions and suggestions.
+    Many thanks to Michael Eskin, Jesse Chappell, Gerard Kilbride, Louis Barman, Randy George, Gianluca Barbaro, and many other WARBL users for their additions and suggestions.
 
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -98,7 +98,7 @@ byte battLevel;                     // Estimated battery percentage remaining
 
 
 // BLE
-uint16_t connIntvl = 0;  // The negotiated connection interval
+int connIntvl = 0;  // The negotiated connection interval
 
 
 // IMU data
@@ -125,9 +125,9 @@ unsigned long autoCenterYawTimer;  // For determining when to auto-recenter the 
 bool pitchRegisterShifted;         // Whether the register has been shifted by IMU pitch
 int pitchRegisterBounds[6];        // Pitch boundaries (in degrees) between registers, i.e. lower bound of register 1, upper bound of register 1, etc. for up to five registers.
 bool shakeDetected = 0;
-byte yawOutput;                // This is global because it used by both yaw mapping and sticks mode.
-byte prevKey = 0;              // Used to remember the current key because we'll need to reset it if we're just using it as the hidden way of entering or exiting sticks mode.
-unsigned long sticksModeTimer;  // For timing out the hidden way of entering sticks mode.
+byte yawOutput;                         // This is global because it used by both yaw mapping and sticks mode.
+byte prevKey = 0;                       // Used to remember the current key because we'll need to reset it if we're just using it as the hidden way of entering or exiting sticks mode.
+unsigned long sticksModeTimer = 20000;  // For timing out the hidden way of entering sticks mode.
 
 // Instrument
 byte mode = 0;         // The current mode (instrument), from 0-2.
@@ -141,15 +141,15 @@ int WARBL2CustomChartReceiveByte = 0;  // The byte in the custom chart currently
 
 
 // Variables that can change according to instrument.
-int8_t octaveShift = 0;                       // Octave transposition
-int8_t noteShift = 0;                         // Note transposition, for changing keys. All fingering patterns are initially based on the key of D, and transposed with this variable to the desired key.
-byte pitchBendMode = kPitchBendSlideVibrato;  // 0 means slide and vibrato are on. 1 means only vibrato is on. 2 is all pitchbend off, 3 is legato slide/vibrato.
-byte senseDistance = 10;                      // The sensor value above which the finger is sensed for bending notes. Needs to be higher than the baseline sensor readings, otherwise vibrato will be turned on erroneously.
-byte breathMode = kPressureBreath;            // The desired presure sensor behavior: single register, overblow, thumb register control, bell register control.
-unsigned int vibratoDepth = 1024;             // Vibrato depth from 0 (no vibrato) to 8191 (one semitone)
-bool useLearnedPressure = 0;                  // Whether we use learned pressure for note on threshold, or we use calibration pressure from startup
-byte midiBendRange = 2;                       // +/- semitones that the midi bend range represents
-byte mainMidiChannel = 1;                     // Current MIDI channel to send notes on
+int8_t octaveShift = 0;                            // Octave transposition
+int8_t noteShift = 0;                              // Note transposition, for changing keys. All fingering patterns are initially based on the key of D, and transposed with this variable to the desired key.
+byte pitchBendMode = kPitchBendSlideVibrato;       // 0 means slide and vibrato are on. 1 means only vibrato is on. 2 is all pitchbend off, 3 is legato slide/vibrato.
+byte senseDistance = 10;                           // The sensor value above which the finger is sensed for bending notes. Needs to be higher than the baseline sensor readings, otherwise vibrato will be turned on erroneously.
+byte breathMode = kPressureBreath;                 // The desired presure sensor behavior: single register, overblow, thumb register control, bell register control.
+unsigned int vibratoDepth = 1024;                  // Vibrato depth from 0 (no vibrato) to 8191 (one semitone)
+bool useLearnedPressure = 0;                       // Whether we use learned pressure for note on threshold, or we use calibration pressure from startup
+byte midiBendRange = 2;                            // +/- semitones that the midi bend range represents
+byte mainMidiChannel = MIDI_DEFAULT_MAIN_CHANNEL;  // Current MIDI channel to send notes on
 
 
 // These are containers for the above variables, storing the value used by the three different instruments (modes).  First variable in array is for instrument 0, etc.
@@ -169,10 +169,14 @@ byte midiChannelSelector[] = { 1, 1, 1 };
 
 bool momentary[3][3] = { { 0, 0, 0 }, { 0, 0, 0 }, { 0, 0, 0 } };  // Whether momentary click behavior is desired for MIDI on/off message sent with a button. Dimension 0 is mode (instrument), dimension 1 is button 0,1,2.
 
-byte switches[3][kSWITCHESnVariables] =           // Settings for the switches in various Config Tool panels (see defines)
-  { { 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0 },    // Instrument 0
-    { 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0 },    // Instrument 1
-    { 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0 } };  // Instrument 2
+//20240629 MrMep - Doublec click Action
+bool waitingSecondClick[3] = { 0, 0, 0 };
+unsigned int doubleClickTimer = 0;
+
+byte switches[3][kSWITCHESnVariables] =              // Settings for the switches in various Config Tool panels (see defines)
+  { { 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0 },    // Instrument 0
+    { 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0 },    // Instrument 1
+    { 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0 } };  // Instrument 2
 
 byte IMUsettings[3][kIMUnVariables] =                                                                                      // Settings for mapping and sending IMU readings (see defines above)
   { { 0, 0, 0, 1, 1, 0, 36, 0, 127, 0, 36, 0, 127, 0, 36, 0, 127, 1, 1, 1, 2, 11, 10, 0, 0, 1, 0, 50, 0, 90, 2, 0, 0 },    // Instrument 0
@@ -261,9 +265,9 @@ int toneholeRead[] = { 0, 0, 0, 0, 0, 0, 0, 0, 0 };                             
 unsigned int holeCovered = 0;                                                      // Whether each hole is covered-- each bit corresponds to a tonehole.
 bool fingersChanged = 1;                                                           // Keeps track of when the fingering pattern has changed.
 unsigned int prevHoleCovered = 1;                                                  // So we can track changes.
-volatile int tempNewNote = 0;
-byte prevNote;
-byte newNote = -1;              // The next note to be played, based on the fingering chart (does not include transposition).
+byte tempNewNote = 127;
+byte prevNote = 127;
+byte newNote = 127;             // The next note to be played, based on the fingering chart (does not include transposition).
 byte notePlaying;               // The actual MIDI note being played, which we remember so we can turn it off again.
 byte transientFilterDelay = 0;  // Small delay for filtering out transient notes
 unsigned long transitionFilter = 0;
@@ -289,10 +293,10 @@ int adjvibdepth;                                                                
 
 
 // Variables for managing MIDI note output
-bool noteon = 0;      // Whether a note is currently turned on
-bool shiftState = 0;  // Whether the octave is shifted (could be combined with octaveShift)
-int8_t shift = 0;     // The total amount of shift up or down from the base note 62 (D). This takes into account octave shift and note shift.
-byte velocity = 127;  // MIDI note velocity
+bool noteon = 0;                        // Whether a note is currently turned on
+bool shiftState = 0;                    // Whether the octave is shifted (could be combined with octaveShift)
+int8_t shift = 0;                       // The total amount of shift up or down from the base note 62 (D). This takes into account octave shift and note shift.
+byte velocity = MIDI_DEFAULT_VELOCITY;  // MIDI note velocity
 
 
 // Tonehole calibration variables
@@ -313,11 +317,13 @@ bool signalAliveOn = false;            // if the alive blink light is on
 int signalAliveCount = 1;              // when zero, makes a single alive blink 
 
 // Variables for communication with the WARBL Configuration Tool
-bool communicationMode = 0;          // Whether we are currently communicating with the tool.
-byte buttonReceiveMode = 100;        // Which row in the button configuration matrix for which we're currently receiving data.
-int pressureReceiveMode = 100;       // Indicates the variable for which we're currently receiving data
-byte fingeringReceiveMode = 0;       // Indicates the mode (instrument) for  which a fingering pattern is going to be sent
-byte WARBL2settingsReceiveMode = 0;  // Indicates the mode (instrument) for  which a WARBL2settings array variable is going to be sent
+bool communicationMode = 0;                       // Whether we are currently communicating with the tool.
+byte communicationModeSource = MIDI_SOURCE_NONE;  // The source of the last MIDI_ENTER_COMM_MODE received: USB or BLE
+byte buttonReceiveMode = 100;                     // Which row in the button configuration matrix for which we're currently receiving data.
+int pressureReceiveMode = 100;                    // Indicates the variable for which we're currently receiving data
+byte fingeringReceiveMode = 0;                    // Indicates the mode (instrument) for  which a fingering pattern is going to be sent
+byte WARBL2settingsReceiveMode = 0;               // Indicates the mode (instrument) for  which a WARBL2settings array variable is going to be sent
+volatile bool midiSendCoupletMutex = false;       // Variable to keep as thread-safe as possible the communication with the Config Tool--A simple mutex that indicates if a double-message transmission is active
 
 // Raw mode variables
 bool noteMode = 1;                   // 1 if in normal note/pitch bend/shake/sip mode, 0 if in raw mode which surpressed these messages
@@ -405,7 +411,7 @@ void setup() {
     usb_midi.setStringDescriptor("WARBL USB MIDI");
     MIDI.begin(MIDI_CHANNEL_OMNI);  // Initialize MIDI, and listen to all MIDI channels. This will also call usb_midi's begin().
     MIDI.turnThruOff();
-    MIDI.setHandleControlChange(handleControlChange);  // Handle received MIDI CC messages.
+    MIDI.setHandleControlChange(handleControlChangeFromUSB);  // Handle received MIDI CC messages.
 
     //delay(2000); // Makes it so button 3 must be held down for two seconds to power on.
 
@@ -437,7 +443,7 @@ void setup() {
     bledis.begin();
     BLEMIDI.begin(MIDI_CHANNEL_OMNI);  // Initialize MIDI, and listen to all MIDI channels. This will also call blemidi service's begin().
     BLEMIDI.turnThruOff();
-    BLEMIDI.setHandleControlChange(handleControlChange);          // Handle received MIDI CC messages.
+    BLEMIDI.setHandleControlChange(handleControlChangeFromBLE);   // Handle received MIDI CC messages.
     Bluefruit.Periph.setConnectCallback(connect_callback);        // Get connection information and handle indication.
     Bluefruit.Periph.setDisconnectCallback(disconnect_callback);  // Detect disconnect.
     startAdv();                                                   // Set up and start advertising. Comment this out for testing without BLE on.
@@ -456,15 +462,15 @@ void setup() {
     sox.setGyroDataRate(LSM6DS_RATE_SHUTDOWN);  // Shut down the gyro for now to save power, and we'll turn it on in loadPrefs() if necessary. IMU uses 0.55 mA if both gyro and accel are on, or 170 uA for just accel.
     sox.setAccelDataRate(LSM6DS_RATE_208_HZ);   // Turn on the accel.
 
-    //writeEEPROM(44, 255);  // This line can be uncommented to make a version of the software that will resave factory settings every time it is run.
+    //writeEEPROM(EEPROM_SETTINGS_SAVED, 255);  // This line can be uncommented to make a version of the software that will resave factory settings every time it is run.
 
-    if (readEEPROM(44) != 3) {
+    if (readEEPROM(EEPROM_SETTINGS_SAVED) != 3) {
         WDDTelapsedTime = millis();
         watchdogReset();        // Feed the watchdog because we need to do some things that will take some time.
         saveFactorySettings();  // If we're running the software for the first time, or if a factory reset has been requested, copy all settings to EEPROM.
     }
 
-    if (readEEPROM(37) == 3) {
+    if (readEEPROM(EEPROM_SENSOR_CALIB_SAVED) == 3) {
         loadCalibration();  // If there has been a calibration saved, reload it at startup.
     }
 
@@ -479,17 +485,17 @@ void setup() {
 
     //eraseEEPROM(); // Testing
 
-    writeEEPROM(1991, VERSION);  // Update the firmware version if it has changed.
+    writeEEPROM(EEPROM_FIRMWARE_VERSION, VERSION);  // Update the firmware version if it has changed.
 
     // Reprogram the ATmega32U4 if necessary (doesn't work with 4.6 prototypes because they don't have a reset trace from the NRF to the ATmega reset pin.)
 #ifndef PROTOTYPE46
     WDDTelapsedTime = millis();
     watchdogReset();  // Feed the watchdog.
                       //while (!Serial);                 // Can uncomment this if not using release version, to show verbose programming output.
-    if (ATMEGA_FIRMWARE_VERSION != readEEPROM(1995)) {
+    if (ATMEGA_FIRMWARE_VERSION != readEEPROM(EEPROM_ATMEGA_FIRMWARE_VERSION)) {
         if (programATmega()) {
             Serial.println("Success");
-            writeEEPROM(1995, ATMEGA_FIRMWARE_VERSION);  // Update the stored ATmega version after burning.
+            writeEEPROM(EEPROM_ATMEGA_FIRMWARE_VERSION, ATMEGA_FIRMWARE_VERSION);  // Update the stored ATmega version after burning.
         }
     }
 #endif
