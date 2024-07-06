@@ -49,13 +49,15 @@ void toRawQueue(byte type, short value) {
 // the value should be inside -1 ... 1, it is then scaled to
 // -RAW_MAX_VALUE ... RAW_MAX_VALUE
 void floatToRawQueue(byte type, float value) {
-    if(value < -1 || value > 1) {
+    short v = (short)round(value*RAW_MAX_VALUE);
+    if(value < -1 || value > 1 /*|| type == 8*/) {
       Serial.print("!!! ");
       Serial.print(type);
       Serial.print("=");
-      Serial.println(value);
+      Serial.println(value, 4);
+      Serial.print("=");
+      Serial.println(v);
     }
-    short v = (short)round(value*RAW_MAX_VALUE);
     toRawQueue(type, v);
 }
 
@@ -76,9 +78,12 @@ void rawUpdatePressure(void) {
 void rawUpdateToneholes(void) {
     for (int h = 0; h < NUM_TONEHOLES; ++h) {
         int p = RAW_TYPE_TONEHOLE + h;
-        int r = toneholeRead[h] - senseDistance;
-        if (r >= 0)
-            floatToRawQueue(p, (r - (int)toneholeCovered[h])/(float)RAW_TONEHOLE_DIV);
+        int r = toneholeRead[h];// - senseDistance;
+        //if (r >= 5 && h == 7) {
+        //    Serial.println(r);
+        //    Serial.println((int)toneholeCovered[h] - r);
+        //}
+        floatToRawQueue(p, ((int)toneholeCovered[h] - r)/(float)RAW_TONEHOLE_DIV);
     }
 }
 

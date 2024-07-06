@@ -300,10 +300,12 @@ void powerDown(bool resetTotalRuntime) {
 // Switches yellow light on/off
 void signalAlive(bool lightOn) {
     if((!lightOn || signalAliveCount-- == 0) && signalAliveOn != lightOn) {
-        int v = lightOn ? 511 : 0;
-        analogWrite(LEDpins[RED_LED], v);
-        analogWrite(LEDpins[GREEN_LED], v);
-        signalAliveOn = lightOn;
+        if(!pulseLED[RED_LED] || !lightOn) { // No need for signal if pulse
+            int v = lightOn ? 400 : 0;
+            analogWrite(LEDpins[RED_LED], v); // Off or dark yellow
+            analogWrite(LEDpins[GREEN_LED], v/2);
+            signalAliveOn = lightOn;
+        }
         signalAliveCount = 5; // Wait this many times before blinking again
     }
 }

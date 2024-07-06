@@ -325,8 +325,8 @@ bool noteMode = 1;                   // 1 if in normal note/pitch bend/shake/sip
                                      // or configuration work normally; communicationMode and calibration force noteMode/exit the raw mode
 int32_t rawMask = 0x1fff;            // A bit mask where bit number represents the type of a sensor as given in RAW_TYPE_*; if the bit is true, the respective;
                                      // example values 0x3ff only pressure + toneholes, 0x1fff pressure + toneholes + buttons (default),
-                                     // 0xffff all except gyro, 0x70000 gyro only, 0x7e000 accel + gyro
-                                     // measurement is included in raw MIDI messages
+                                     // 0xffff all except gyro, 0x70000 gyro only, 0x7e000 accel + gyro, 0x100 only the 8th tonehole (the hole closest to
+                                     // the mouthpiece)
 int rawThrottle = 2;                 // Maximum number of raw messages per loop; if exceeded, update frequency/precision decreases
 bool rawGyroEnable = false;          // If the mask enables any of the gyro coordinates; switches off the gyro part of IMU if false
 signed short rawPrevious[RAW_TYPE_NUM] = {// Sensor value most recently sent; used to calculate difference to current which determines priority; indices
